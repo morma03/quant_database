@@ -1,0 +1,491 @@
+Absolutely. Based on Symmetry’s public rates-trading analyst description, I’d expect a front-office style interview that blends **rates fundamentals, implementation detail, and trading/risk intuition** rather than a purely academic quant grilling. The public posting emphasizes working closely with a PM, building rates-market knowledge, and applying quantitative/programming skills directly to the trading process; broader current linear-rates quant openings also cluster around **curve construction, pricing/risk analytics, Treasury futures/CTD details, and desk support**. Some candidate reports also suggest Symmetry’s interview process can include assessments, though those reports are anecdotal and not role-specific. ([Startup Jobs][1])
+
+Here is a **realistic mock Symmetry interview with model answers**.
+
+---
+
+## Mock Symmetry rates quant interview
+
+### 1) “Walk me through how you would build a USD rates curve today.”
+
+**Strong answer:**
+
+I would start by being explicit about **what curve I need**. In USD today, the natural starting point is usually a **SOFR discount curve**, then any projection curves if the product set requires them.
+
+A practical workflow:
+
+1. **Choose the instrument set by maturity bucket**
+
+   * very front end: overnight / short OIS instruments or deposit-like overnight points
+   * front to medium: **SOFR futures**
+   * medium to long end: **OIS swaps**
+
+2. **Bootstrap sequentially**
+
+   * solve discount factors from the shortest liquid instruments first
+   * each additional instrument should pin down one extra degree of freedom
+
+3. **Interpolation choice matters**
+
+   * I usually prefer an interpolation scheme that preserves stability of forwards and avoids weird oscillations
+   * often that means interpolating something close to log discount factors or carefully chosen zero/forward quantities, not just whatever is easiest numerically
+
+4. **Validation**
+
+   * reprice all calibration instruments tightly
+   * inspect implied forward rates for kinks or arbitrage-like artifacts
+   * test hedge stability: a small move in one quote should not create crazy risk jumps elsewhere
+
+5. **Production concerns**
+
+   * calendars, stubs, holiday rolls, day count, futures conversion conventions, broken dates, and quote timestamps matter as much as the math
+
+**What they are testing:** whether you think like a desk quant, not just like someone who memorized “bootstrap the curve.”
+
+---
+
+### 2) “Why do we discount swaps with OIS rather than LIBOR-style curves?”
+
+**Strong answer:**
+
+Because the discount curve should reflect the funding/collateral mechanics of the trade, not just the floating leg index. Under standard collateralized trading, discounting off an overnight collateral rate became the market standard. That is why modern swap valuation became **multi-curve**:
+
+* **discount curve** for present valuing cashflows
+* **projection curve** for generating the floating coupons tied to the relevant index
+
+Pre-crisis, people often used a single curve for both. Post-crisis, basis became too important to ignore, and funding/collateral assumptions clearly separated discounting from forecasting. So if I’m valuing a collateralized SOFR swap, I discount on the OIS/SOFR curve, and project the floating leg off the appropriate forward setup. A current linear-rates quant role is very likely to expect this framework, since current front-office postings explicitly emphasize collateral-aware curve frameworks and advanced curve calibration. ([Reed][2])
+
+---
+
+### 3) “What do you interpolate: discount factors, zero rates, or forwards?”
+
+**Strong answer:**
+
+There is no universally correct choice; it depends on the stability you want.
+
+My answer would be:
+
+* **Discount factors / log discount factors** are often robust and tend to behave well numerically.
+* **Zero-rate interpolation** is intuitive, but can produce undesirable forward behavior if you are not careful.
+* **Forward-rate interpolation** gives you more direct control over forward smoothness, but can be more fragile.
+
+My practical criterion is not elegance, it is:
+
+* exact or near-exact repricing,
+* sensible forward shape,
+* no artificial arbitrage,
+* stable risk numbers under small market moves.
+
+Then I would add: if a desk hedges on bucketed risk, I care a lot about whether my interpolation creates unstable bucket exposures around nodes.
+
+That last sentence is the one traders like.
+
+---
+
+### 4) “How do you price a vanilla fixed-for-floating swap?”
+
+**Strong answer:**
+
+The swap PV is:
+
+**PV = PV(floating leg) − PV(fixed leg)**
+if I’m receiving float and paying fixed.
+
+For the fixed leg, I sum:
+[
+PV_{fixed} = N \cdot K \sum_i \alpha_i D(t_i)
+]
+
+For the floating leg, I project each floating coupon off the forward curve and discount with the discount curve:
+[
+PV_{float} = N \sum_j \alpha_j F_j D(t_j)
+]
+
+At inception, the **par swap rate** is the fixed rate (K^*) that makes the total PV zero:
+[
+K^* = \frac{\sum_j \alpha_j F_j D(t_j)}{\sum_i \alpha_i D(t_i)}
+]
+
+Intuitively, the denominator is the **swap annuity**, and the numerator is the discounted expected float-leg cashflow.
+
+If they push further, add:
+
+* in the single-curve idealization, the floating leg can often be written as a simple bond-difference expression
+* in practice, with modern multi-curve valuation, you separate discounting and forwarding explicitly
+
+---
+
+### 5) “What is DV01? How would you compute it for a swap?”
+
+**Strong answer:**
+
+DV01 is the change in PV for a **1 basis point move** in rates.
+
+For a swap, I’d distinguish two meanings:
+
+1. **Parallel DV01**
+
+   * bump the relevant curve(s) by 1 bp, rebuild, reprice, take the PV difference
+
+2. **Bucketed / key-rate DV01**
+
+   * shift one node or maturity bucket at a time and measure sensitivity locally
+
+For implementation, I’d usually prefer a **rebuild-and-reprice bump** approach first because it respects the actual calibration machinery. Adjoint or analytic methods can be added later for speed.
+
+Then I’d say something interviewers like:
+
+> A single DV01 number is useful, but incomplete. A trade can be flat on total DV01 and still carry significant curve, basis, and convexity risk.
+
+That is exactly how a desk thinks.
+
+---
+
+### 6) “What is the difference between parallel DV01 and key-rate DV01?”
+
+**Strong answer:**
+
+Parallel DV01 assumes the whole curve shifts together.
+Key-rate DV01 breaks the sensitivity into moves at selected maturities, such as 2y, 5y, 10y, 30y.
+
+Parallel DV01 is useful for quick exposure summaries.
+Key-rate DV01 is more useful for actual hedging, because real markets do not move in parallel; they twist, steepen, flatten, and reshape.
+
+Example:
+
+* A 10y swap might have similar parallel DV01 to a hedge basket of 5y and 30y instruments.
+* But if the curve twists, the two positions can behave very differently.
+
+So a trader who hedges only parallel DV01 may still be exposed to **curve shape risk**.
+
+---
+
+### 7) “Suppose I want to put on a 2s10s steepener. How would you size it?”
+
+**Strong answer:**
+
+I would size it on **risk**, not notional.
+
+A standard approach:
+
+* choose the 2y and 10y instruments I want to trade, for example swaps, Treasuries, or futures
+* compute DV01 of each leg
+* scale the notionals so the position is neutral to a parallel move, or as close as practical
+
+If I’m doing a steepener:
+
+* long the leg that benefits from higher 10y relative to 2y, and short the other
+* notionals are set such that:
+  [
+  N_{2y}\cdot DV01_{2y} \approx N_{10y}\cdot DV01_{10y}
+  ]
+
+Then I would add the important caveat:
+
+* even after DV01-neutral sizing, I still retain **non-parallel curve exposure**
+* plus carry, rolldown, basis, liquidity, and convexity differences
+
+That is a better answer than just “buy 10s and sell 2s.”
+
+---
+
+### 8) “Explain Treasury futures, conversion factors, and CTD.”
+
+**Strong answer:**
+
+Treasury futures are priced on a **deliverable basket** of eligible bonds. Because the deliverables have different coupons and maturities, the exchange uses a **conversion factor** to normalize invoice pricing. In practice, the short chooses what to deliver, so the contract embeds a delivery option.
+
+The **cheapest-to-deliver (CTD)** is the bond in the basket that minimizes the economic cost of delivery, or equivalently maximizes the delivery advantage to the short. In practical desk language, it is the bond that gives the best economics relative to the futures price after accounting for invoice mechanics and financing.
+
+Why CTD matters:
+
+* futures duration depends on the CTD
+* hedge ratios change when CTD changes
+* a futures hedge can drift if you assume a fixed CTD and the market reprices the basket
+
+Current linear-rates quant roles explicitly mention needing depth on cost-of-delivery and model details, so I would expect some version of this topic to be fair game. ([weareinvestigo.com][3])
+
+---
+
+### 9) “What is carry and rolldown on a rates trade?”
+
+**Strong answer:**
+
+**Carry** is the PnL you expect to earn if the curve stays unchanged and time passes, driven by coupon, financing, and accrual effects.
+
+**Rolldown** is the PnL effect from the instrument moving to a different point on the curve over time, assuming the shape of the curve is unchanged.
+
+Example:
+
+* if the curve is upward sloping and I own a bond or swap position that “rolls down” into a lower-yield part of the curve, that can generate positive expected PnL
+* but carry and rolldown are not free money; they come with exposure to the assumption that the curve shape remains favorable
+
+A strong trade idea often has:
+
+* attractive carry/rolldown
+* manageable mark-to-market risk
+* clear catalyst or valuation reason
+
+That is the PM-style framing they may want.
+
+---
+
+### 10) “A trader says your curve has a weird kink around 5y. How do you debug it?”
+
+**Strong answer:**
+
+I would debug systematically:
+
+1. **Check raw market inputs**
+
+   * stale quote?
+   * crossed or off-market level?
+   * wrong timestamp?
+   * wrong contract roll?
+
+2. **Check conventions**
+
+   * calendars, spot lag, day count, fixed leg frequency, payment lag, business day adjustment
+
+3. **Check instrument stitching**
+
+   * is the transition between futures and swaps handled properly?
+   * any bad convexity or contract mapping assumption?
+
+4. **Check interpolation**
+
+   * a bad interpolation choice can create local forward oscillations even if repricing looks fine
+
+5. **Check outputs beyond PV**
+
+   * implied forwards
+   * node sensitivities
+   * day-on-day stability
+
+6. **Run leave-one-out diagnostics**
+
+   * remove the suspect quote and see whether the shape normalizes
+
+I would finish with:
+
+> On a desk, I care less about whether the curve “looks smooth” and more about whether it reprices, produces sensible forwards, and gives stable hedge ratios.
+
+That is a very strong closing line.
+
+---
+
+### 11) “Your trade was DV01-neutral, but it still lost money. Why?”
+
+**Strong answer:**
+
+Because DV01-neutral only neutralizes one dimension of risk.
+
+Possible reasons:
+
+* **non-parallel curve move**
+* **key-rate mismatch**
+* **swap spread move**
+* **cash/futures basis move**
+* **CTD change**
+* **convexity mismatch**
+* **funding / repo move**
+* **liquidity or execution slippage**
+* **model or curve rebuild effect**
+
+A good PnL explanation framework would decompose:
+
+1. carry and rolldown,
+2. parallel shift contribution,
+3. twist / butterfly contribution,
+4. spread or basis contribution,
+5. residual.
+
+That answer shows you think in real desk attribution terms.
+
+---
+
+### 12) “How would you explain swap spreads widening or tightening?”
+
+**Strong answer:**
+
+I would avoid pretending there is one universal driver.
+
+Swap spreads reflect the relative pricing of:
+
+* Treasury cash market,
+* swap market,
+* funding / balance sheet conditions,
+* hedging flows,
+* issuance dynamics,
+* risk sentiment and liquidity.
+
+So widening or tightening can come from different combinations of:
+
+* Treasury richening/cheapening,
+* paying/receiving pressure in swaps,
+* repo/funding changes,
+* dealer balance-sheet constraints,
+* flight-to-quality episodes.
+
+The key thing is to answer as a **framework**, not as a single-cause story.
+
+---
+
+### 13) “How would you hedge a swap position with Treasury futures?”
+
+**Strong answer:**
+
+First, decide what risk I am trying to neutralize:
+
+* outright duration,
+* bucketed rate risk,
+* or a specific point on the curve.
+
+Then:
+
+1. compute the swap’s DV01 or bucketed ladder
+2. compute the futures’ hedge DV01, using the relevant CTD assumptions
+3. choose the number of contracts that best offsets the targeted exposure
+4. check residual risks:
+
+   * swap spread risk
+   * CTD switching risk
+   * convexity mismatch
+   * bucket mismatch
+
+I would explicitly say:
+
+> A Treasury futures hedge is not a pure swap hedge; it leaves basis risk by construction.
+
+That is the right instinct.
+
+---
+
+### 14) “How would you structure a rates analytics library?”
+
+**Strong answer:**
+
+I would keep the architecture modular:
+
+* **market data layer**
+
+  * quotes, timestamps, cleaning, source control
+
+* **conventions layer**
+
+  * calendars, day count, business day adjustment, holiday logic
+
+* **instrument layer**
+
+  * futures, OIS, IRS, Treasury bonds, bills
+
+* **curve layer**
+
+  * calibration framework, interpolation objects, node management
+
+* **pricer layer**
+
+  * PV, par rate, DV01, key-rate, carry/roll
+
+* **risk / scenario layer**
+
+  * bumps, stress tests, PnL explain
+
+* **testing / validation**
+
+  * repricing tests
+  * regression tests
+  * convention edge-case tests
+  * sanity checks for monotonic discount factors and sensible forwards
+
+Then I would mention performance:
+
+* caching
+* dependency graph for incremental rebuilds
+* vectorized cashflow evaluation
+* profiling before premature optimization
+
+That answer is usually stronger than jumping straight into class names.
+
+---
+
+### 15) “What would you test before putting a new curve model into production?”
+
+**Strong answer:**
+
+At minimum:
+
+* calibration instruments reprice correctly
+* discount factors are sensible
+* no pathological forwards unless the market truly implies them
+* risk ladders are stable under small quote perturbations
+* results are consistent across roll dates and holiday boundaries
+* missing or bad quotes fail gracefully
+* day-on-day changes are explainable
+
+And I would include one practical line:
+
+> A model that prices well but produces unstable hedge ratios is not ready for desk use.
+
+---
+
+## A few short-fire questions they may ask
+
+### “What happens to a payer swap when rates rise?”
+
+A payer swap generally gains value when rates rise, because you are paying a fixed rate that becomes cheaper relative to the new higher market fixed rate.
+
+### “Why is bond price/yield relationship convex?”
+
+Because discounting is nonlinear in yield; equal up/down yield moves do not produce symmetric price changes.
+
+### “Why can interpolation choice affect hedging?”
+
+Because hedge ratios come from local curve sensitivities, and interpolation changes how shocks propagate between nodes.
+
+### “What’s more important: exact repricing or smoothness?”
+
+Exact repricing of liquid instruments is essential, but smoothness matters because ugly local artifacts create unstable forwards and unstable risk.
+
+---
+
+## What I would memorize almost word-for-word
+
+These are good “anchor lines” for the interview:
+
+* **“A curve is not just a pricing object; it is also a risk and hedging object.”**
+* **“I judge a curve by repricing accuracy, forward plausibility, and hedge stability.”**
+* **“Parallel DV01 is a summary statistic; key-rate risk is what matters for actual hedging.”**
+* **“A DV01-neutral trade can still have curve, basis, convexity, liquidity, and funding risk.”**
+* **“For front-office tools, conventions and data hygiene are often as important as the math.”**
+
+---
+
+## If they ask for one trade idea
+
+A clean example answer:
+
+> “If I had a macro view that the market is overpricing front-end cuts while long-end term premium stays sticky, I might look at a curve expression like a 2s10s or 5s30s flattener/steepener depending on the setup. I’d size on key-rate DV01, then evaluate not just directional sensitivity but carry, rolldown, basis risk, and liquidity. I’d also want to know whether swaps, Treasuries, or futures give the cleanest expression after funding and execution costs.”
+
+That sounds much more like a rates seat than a textbook answer.
+
+---
+
+## Best way to practice tonight
+
+Take these 8 and answer them out loud:
+
+1. Build a SOFR curve
+2. Explain OIS discounting and multi-curve
+3. Price a vanilla swap and derive par rate
+4. Explain DV01 and key-rate DV01
+5. Hedge a swap with Treasury futures
+6. Explain CTD and why it can change
+7. Explain carry and rolldown
+8. Debug a broken curve build
+
+If you want, I’ll do a **live mock interview next**: I ask one Symmetry-style question at a time, you answer, and I mark it like an interviewer.
+
+[1]: https://startup.jobs/rates-trading-analyst-symmetryinvest-4032715?utm_source=chatgpt.com "Rates Trading Analyst at Symmetry Investments"
+[2]: https://www.reed.co.uk/jobs/senior-linear-rates-quant-hedge-fund-10-years-experience/56662994?utm_source=chatgpt.com "Senior Linear Rates Quant - Hedge Fund 10 Years' ..."
+[3]: https://www.weareinvestigo.com/jobs/linear-rates-quant-271/?utm_source=chatgpt.com "Linear Rates Quant"

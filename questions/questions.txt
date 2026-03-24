@@ -1,0 +1,180 @@
+Yes — not the exact questions, but the **highest-probability topics**.
+
+Public Symmetry material points to a front-office, PM-facing rates role focused on **US rates**, especially **Treasuries, interest-rate swaps, futures, trading tools, analytics, and research/trade ideas**. Their published interview description also mentions an **aptitude assessment** and a technical conversation focused on **how you break down complex problems**. More broadly, current linear-rates quant roles in the market emphasize **curve construction, pricing/risk models, analytics libraries, cost-of-delivery/CTD details, and desk support**. That combination strongly suggests a process that is less “pure academic quant” and more “can you build, explain, and risk-manage rates trades in production?” ([Startup Jobs][1])
+
+From my point of view, these are the questions most likely to come up.
+
+## 1) Curve building
+
+These are the most likely.
+
+1. **How would you bootstrap a discount curve?**
+   Start from liquid instruments, solve sequentially, explain why each new instrument pins down one new degree of freedom.
+
+2. **Why do we use OIS discounting? Why did multi-curve become standard?**
+   They will want the post-crisis intuition, not just buzzwords.
+
+3. **How would you build a forward curve for 3M or 6M from futures/FRAs/swaps?**
+   Be ready to discuss instrument selection by maturity bucket.
+
+4. **Where would you interpolate — discount factors, zero rates, or forwards — and why?**
+   This is a classic “good quant judgment” question.
+
+5. **What can go wrong in a bootstrapped curve?**
+   Negative forwards, kinks, instability, bad stubs, bad calendars, stale quotes, inconsistent inputs.
+
+6. **How do you validate a curve build?**
+   Reprice inputs, check smoothness, forward behavior, hedge stability, and day-on-day moves.
+
+7. **If a single market quote is off-market, how do you detect and handle it?**
+   They may push you on whether you drop it, smooth through it, or flag it.
+
+8. **How would you incorporate futures into the front end of a SOFR curve?**
+   You should be ready for futures-to-swap stitching issues.
+
+## 2) Linear product pricing
+
+Very likely.
+
+9. **How do you price a vanilla fixed-for-floating IRS?**
+   They will expect you to go from cashflows to discounting to par rate.
+
+10. **Why is a par swap worth zero at inception?**
+    Basic, but often asked to test clarity.
+
+11. **How do you compute the forward swap rate?**
+    Expect them to ask for both intuition and formula.
+
+12. **How do you price a bond from a zero curve?**
+    Then they may jump to yield, duration, convexity.
+
+13. **What is the relationship between bond price and yield?**
+    They may ask about convexity and why the relationship is nonlinear.
+
+14. **How do Treasury futures work?**
+    You should know conversion factors, CTD, invoice price, delivery option at a practical level.
+
+15. **What is CTD and why can it change?**
+    This is a very plausible question for a US-rates-focused seat.
+
+16. **What is implied repo / cost of delivery intuition?**
+    Current linear-rates quant mandates explicitly mention CoD/CTD-style detail. ([weareinvestigo.com][2])
+
+## 3) Risk and hedging
+
+Also highly likely.
+
+17. **What is DV01 / PV01 / BPV?**
+    Define it cleanly and say how you’d compute it.
+
+18. **What is the difference between parallel DV01 and key-rate DV01?**
+    They may ask why a hedge that is flat on total DV01 can still lose money.
+
+19. **How would you hedge a swap with futures or Treasuries?**
+    Watch for cheapest-to-deliver and bucket-matching discussion.
+
+20. **What risks remain after a DV01-neutral hedge?**
+    Curve, butterfly, basis, convexity, carry/roll, liquidity, funding, execution.
+
+21. **How would you explain carry and rolldown on a rates trade?**
+    This is a favorite PM-style question.
+
+22. **What is a 2s10s steepener / flattening trade, and how do you size it risk-neutrally?**
+    Be ready to hedge on DV01, not notionals.
+
+23. **Why can a “hedged” butterfly still make or lose money?**
+    This separates memorization from real understanding.
+
+24. **How would you stress-test a rates book?**
+    Parallel shocks, twists, butterflies, basis widening, funding shocks, event shocks.
+
+25. **How would you do PnL attribution on a rates position?**
+    Curve move, carry/roll, spread move, basis, residual.
+
+## 4) Relative value / trading intuition
+
+Given Symmetry’s public emphasis on fixed-income arbitrage and macro, I would expect at least some questions here. ([Startup Jobs][1])
+
+26. **What makes a relative-value trade attractive in rates?**
+    Cheap/rich, stable hedge, good carry, catalyst, manageable basis/liquidity risk.
+
+27. **When do swap spreads widen or tighten?**
+    They are not looking for one cause; they want a framework.
+
+28. **How would you compare a Treasury trade versus a swap trade expressing the same rates view?**
+    Funding, liquidity, balance sheet, carry, execution, basis.
+
+29. **If you like the belly versus wings, how would you structure it?**
+    Expect a butterfly answer with risk-neutral sizing.
+
+30. **How do macro views feed into a linear-rates trade?**
+    Growth/inflation/central-bank path → curve shape, front-end repricing, term premium.
+
+## 5) Quant implementation / coding
+
+Because the public role emphasizes tool-building, research automation, and technical problem solving, these are very plausible. ([Startup Jobs][1])
+
+31. **Code a simple bootstrapper.**
+    Even in pseudocode.
+
+32. **Given cashflow dates and discount factors, compute swap PV.**
+
+33. **How would you structure a rates analytics library?**
+    Market data, conventions, calendars, instruments, curves, pricers, risk.
+
+34. **What tests would you write for curve/pricing code?**
+    Repricing tests, monotonicity/sanity checks, regression tests, convention tests.
+
+35. **How do you handle bad data?**
+    Missing quotes, stale quotes, bad rolls, holiday errors, outliers.
+
+36. **How would you make the system fast enough for desk use?**
+    Caching, incremental recalculation, vectorization, dependency graph, profiling.
+
+## 6) “Open-ended” Symmetry-style questions
+
+These are less formulaic, but I would prepare for them because the firm’s own interview description emphasizes aptitude, fit, and how you decompose hard problems. Company-wide interview reports also suggest assessments beyond standard technical rounds, though those reports are noisy and not role-specific. ([Startup Jobs][1])
+
+37. **You see a kink in the curve. How do you investigate it?**
+38. **A trader says the model is wrong. What do you do first?**
+39. **A hedge works historically but not in the last month. Why might that happen?**
+40. **Describe a time you turned messy data into a usable trading signal.**
+41. **How do you communicate technical disagreement with a PM or trader?**
+42. **What would you automate first on a rates desk, and why?**
+
+## The 8 questions I would bet on most
+
+If you only have limited prep time, master these:
+
+1. Bootstrap an OIS + forward curve
+2. Why multi-curve and OIS discounting
+3. Price a vanilla IRS and derive the par rate
+4. DV01 / key-rate risk / hedge construction
+5. Treasury futures, CTD, conversion factor
+6. Carry + rolldown on a curve trade
+7. Why a DV01-neutral trade still has risk
+8. How you would debug a broken or unstable curve build
+
+## What a strong answer sounds like
+
+For this kind of seat, the best answers usually have **three layers**:
+
+* instrument mechanics
+* implementation detail
+* trading/risk consequence
+
+Example: don’t just say “interpolate zero rates.” Say **where**, **why**, **what pathology it avoids or creates**, and **how that choice affects hedge stability**.
+
+## My read on the interview
+
+My best guess is:
+
+* one part **rates fundamentals**
+* one part **risk/trade intuition**
+* one part **technical implementation**
+* plus some **aptitude / open-ended problem solving** rather than only textbook pricing. ([Startup Jobs][1])
+
+I can turn this into a **mock Symmetry interview with model answers** if that would help.
+
+[1]: https://startup.jobs/rates-trading-analyst-symmetryinvest-4032715 "Rates Trading Analyst at Symmetry Investments"
+[2]: https://www.weareinvestigo.com/jobs/linear-rates-quant-271/ "Linear Rates Quant in London, Greater London, South East, England | Investigo"
